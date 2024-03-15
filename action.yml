@@ -1,0 +1,103 @@
+name: coherence-deploy
+description: deploys to app.withcoherence.com
+branding:
+  icon: star
+  color: black
+
+inputs:
+  arch:
+    description: |
+      defines the architecture of the runner
+      default is: linux-amd64
+      accepts: darwin-arm64 | linux-386 | linux-amd64 | linux-arm64
+    default: linux-amd64
+  branch:
+    description: |
+      name of the branch to deploy
+      default is the current branch the runner is in
+    default: main
+  commit_sha:
+    description: |
+      SHA value of the commit if you want to manually set which to deploy
+      default to the current reference on Github
+    required: false
+  environment_id:
+    description: |
+      id of Coherence environment
+    required: true
+  token:
+    description: |
+      your Coherence COCLI_REFRESH_TOKEN, can be generated using `cocli auth login`
+      or following this example: https://github.com/coherenceplatform/cocli/blob/main/examples/auth.sh
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: darwin-arm64
+      shell: bash
+      if: ${{ inputs.arch == 'darwin-arm64' }}
+      run: echo "ARCH=darwin-arm64" >> $GITHUB_ENV
+
+    - name: linux-386
+      shell: bash
+      if: ${{ inputs.arch == 'linux-386' }}
+      run: echo "ARCH=linux-386" >> $GITHUB_ENV
+
+    - name: linux-amd64
+      shell: bash
+      if: ${{ inputs.arch == 'linux-amd64' }}
+      run: |
+        echo "ARCH=linux-amd64" >> $GITHUB_ENV
+
+    - name: linux-arm64
+      shell: bash
+      if: ${{ inputs.arch == 'linux-arm64' }}
+      run: |
+        echo "ARCH=linux-arm64" >> $GITHUB_ENV
+
+    - name: environment_id
+      shell: bash
+      run: |
+        echo "ENVIRONMENT_ID=${{ inputs.environment_id }}" >> $GITHUB_ENV
+
+    - name: has_commit_sha
+      if: ${{ inputs.commit_sha != '' }}
+      shell: bash
+      run: |
+        echo "COMMIT_SHA=${{ inputs.commit_sha }}" >> $GITHUB_ENV
+
+    - name: has_no_commit_sha
+      if: ${{ inputs.commit_sha != '' }}
+      shell: bash
+      run: |
+        echo "COMMIT_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
+
+    - name: has_target_branch
+      if: ${{ inputs.branch != 'main' }}
+      shell: bash
+      run: |
+        echo "BRANCH_NAME=${{ inputs.branch }}" >> $GITHUB_ENV
+
+    - name: has_no_target_branch
+      if: ${{ inputs.branch == 'main' }}
+      shell: bash
+      run: |
+        echo "BRANCH_NAME=${GITHUB_REF}" >> $GITHUB_ENV
+
+    - name: Download and Install
+      shell: bash
+      env:
+        ARCH: ${{ env.ARCH }}
+      run: |
+        wget -O ./cocli "https://github.com/coherenceplatform/cocli/releases/download/v0.2.0/cocli-${ARCH}"
+        chmod +x cocli
+
+    - name: Deploy
+      shell: bash
+      env:
+        BRANCH_NAME: ${{ inputs.branch }}
+        COCLI_REFRESH_TOKEN: ${{ inputs.token }}
+        ENVIRONMENT_ID: ${{ env.ENVIRONMENT_ID }}
+        COMMIT_SHA: ${{ env.COMMIT_SHA }}
+      run: |
+        ./cocli environments deploy --environment_id ${ENVIRONMENT_ID} --branch_name ${BRANCH_NAME} --commit_sha ${COMMIT_SHA}
